@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const peliculaService = require('../services/PeliculaService'); // ✅
+const peliculaService = require('../services/PeliculaService');
+const { estadisticasDirectores,
+  estadisticasGeneros } = require('../controllers/peliculasController');
+
+router.get('/directores', estadisticasDirectores)
+router.get('/generos', estadisticasGeneros)
 
 router.get('/estadisticas', async (req, res, next) => {
   try {
@@ -10,5 +15,7 @@ router.get('/estadisticas', async (req, res, next) => {
     next(err);
   }
 });
+
+
 
 module.exports = router;
