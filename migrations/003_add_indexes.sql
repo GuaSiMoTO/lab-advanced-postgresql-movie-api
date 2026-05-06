@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_peliculas_anio ON peliculas(anio);

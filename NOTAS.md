@@ -49,3 +49,69 @@ si usas RANK() y hay un empate en el puesto 1, con la misma nota, la siguiente p
 
 ### 3.¿Por qué el trigger usa AFTER INSERT OR UPDATE OR DELETE en lugar de BEFORE?
 Se utiliza AFTER para asegurar que el cambio se registró con éxito en la tabla principal antes de guardarlo en la auditoría, evitando así registrar operaciones que fallaron o fueron rechazadas.
+
+## BONUS: 
+
+### 1.Script de migración versionado: Crea una carpeta migrations/ con archivos 001_initial.sql, 002_add_auditoria.sql, 003_add_indexes.sql. Cada script debe ser idempotente (ejecutable múltiples veces sin error). Añade una tabla schema_migrations que registre qué migraciones se han aplicado.
+```sql
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version VARCHAR(50) PRIMARY KEY,
+    aplicada_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+Carpeta migrations/ creada y archivos también.
+
+### 2.Full-text search: Usa tsvector y tsquery para implementar búsqueda de texto en títulos y nombres de directores. Añade un índice GIN y un endpoint GET /api/peliculas?buscar=nolan.
+
+La búsqueda normal con `LIKE %nolan%` es muy lenta en tablas grandes. PostgreSQL usa **FTS** (Full Text Search) para buscar de forma "inteligente".
+
+### El concepto: tsvector y tsquery
+*   **`tsvector`**: Convierte un texto en una lista de palabras clave (lexemas) optimizadas.
+*   **`tsquery`**: Es la consulta que busca dentro de esos lexemas.
+
+
+### Implementación:
+Para buscar por título y director al mismo tiempo, creamos un **índice GIN** (Generalized Inverted Index).
+
+```sql
+-- 1. Creamos el índice GIN combinando título y director
+CREATE INDEX idx_busqueda_pelicula ON peliculas 
+USING GIN (to_tsvector('spanish', titulo));
+
+-- 2. La consulta para tu endpoint GET /api/peliculas?buscar=nolan
+SELECT p.titulo, d.nombre as director
+FROM peliculas p
+JOIN directores d ON p.director_id = d.id
+WHERE to_tsvector('spanish', p.titulo || ' ' || d.nombre) @@ to_tsquery('spanish', $1), ['nolan'];
+```
+El operador @@ significa "¿coincide el vector con esta consulta?".
+
+### 3.Función SQL personalizada: Crea una función PostgreSQL peliculas_del_director(nombre_director TEXT) que devuelva las películas de ese director con sus estadísticas de reseñas.
+```sql
+CREATE OR REPLACE FUNCTION peliculas_del_director(nombre_buscado TEXT)
+RETURNS TABLE (
+    peli_titulo TEXT,
+    peli_anio INT,
+    promedio_usuarios DECIMAL,
+    total_resenas BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.titulo, 
+        p.anio, 
+        ROUND(AVG(r.puntuacion), 2), 
+        COUNT(r.id)
+    FROM peliculas p
+    JOIN directores d ON p.director_id = d.id
+    LEFT JOIN resenas r ON r.pelicula_id = p.id
+    WHERE d.nombre ILIKE '%' || nombre_buscado || '%'
+    GROUP BY p.id, p.titulo, p.anio;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+Así llamado desde el código:
+```sql
+SELECT * FROM peliculas_del_director('Christopher Nolan');
+```
