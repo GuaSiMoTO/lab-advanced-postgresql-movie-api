@@ -1,10 +1,9 @@
-const pool = require('../config/db');
-const AppError = require('../utils/AppError');
+const pool = require("../config/db");
+const AppError = require("../utils/AppError");
 
 class PeliculaService {
-
-    async obtenerTodas (filtros = {}) {
-        let query = `
+  async obtenerTodas(filtros = {}) {
+    let query = `
             SELECT
                 p.id,
                 p.titulo,
@@ -16,30 +15,28 @@ class PeliculaService {
             FROM peliculas p
             LEFT JOIN directores d ON p.director_id = d.id
             LEFT JOIN generos g ON p.genero_id = g.id
-        `
-    
+        `;
 
-    const params = []
+    const params = [];
 
     if (filtros.genero) {
-        params.push(filtros.genero)
-        query += ` WHERE g.slug = $${params.length}`
+      params.push(filtros.genero);
+      query += ` WHERE g.slug = $${params.length}`;
     }
 
     if (filtros.buscar) {
-        params.push(`%${filtros.buscar}%`)
-        const condicion = `(p.titulo ILIKE $${params.length} OR d.nombre ILIKE $${params.length})`
-        query += filtros.genero ? ` AND ${condicion}` : ` WHERE ${condicion}`
+      params.push(`%${filtros.buscar}%`);
+      const condicion = `(p.titulo ILIKE $${params.length} OR d.nombre ILIKE $${params.length})`;
+      query += filtros.genero ? ` AND ${condicion}` : ` WHERE ${condicion}`;
     }
 
-     query += ' ORDER BY p.nota DESC NULLS LAST'
+    query += " ORDER BY p.nota DESC NULLS LAST";
 
-    const { rows } = await pool.query(query, params)
-    return rows
+    const { rows } = await pool.query(query, params);
+    return rows;
+  }
 
-    }
-
-    async obtenerPorId(id) {
+  async obtenerPorId(id) {
     const { rows } = await pool.query(
       `SELECT
         p.id, p.titulo, p.anio, p.nota,
@@ -49,34 +46,40 @@ class PeliculaService {
        LEFT JOIN directores d ON p.director_id = d.id
        LEFT JOIN generos g ON p.genero_id = g.id
        WHERE p.id = $1`,
-      [id]
-    )
+      [id],
+    );
 
-    if (rows.length === 0) throw new AppError('Película no encontrada', 404)
-    return rows[0]
+    if (rows.length === 0) throw new AppError("Película no encontrada", 404);
+    return rows[0];
   }
 
   async crear(datos) {
-    const { titulo, anio, nota, director_id, genero_id } = datos
+    const { titulo, anio, nota, director_id, genero_id } = datos;
 
     if (nota !== undefined && (nota < 0 || nota > 10)) {
-      throw new AppError('La nota debe estar entre 0 y 10', 400)
+      throw new AppError("La nota debe estar entre 0 y 10", 400);
     }
 
     const { rows } = await pool.query(
       `INSERT INTO peliculas (titulo, anio, nota, director_id, genero_id)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [titulo, Number(anio), nota ? Number(nota) : null, director_id || null, genero_id || null]
-    )
+      [
+        titulo,
+        Number(anio),
+        nota ? Number(nota) : null,
+        director_id || null,
+        genero_id || null,
+      ],
+    );
 
-    return rows[0]
+    return rows[0];
   }
 
   async actualizar(id, datos) {
-    const pelicula = await this.obtenerPorId(id) // lanza 404 si no existe
+    const pelicula = await this.obtenerPorId(id); // lanza 404 si no existe
 
-    const { titulo, anio, nota, director_id, genero_id } = datos
+    const { titulo, anio, nota, director_id, genero_id } = datos;
 
     const { rows } = await pool.query(
       `UPDATE peliculas
@@ -89,21 +92,21 @@ class PeliculaService {
         nota !== undefined ? Number(nota) : pelicula.nota,
         director_id || pelicula.director_id,
         genero_id || pelicula.genero_id,
-        id
-      ]
-    )
+        id,
+      ],
+    );
 
-    return rows[0]
+    return rows[0];
   }
-  
+
   async eliminar(id) {
     const { rows } = await pool.query(
-      'DELETE FROM peliculas WHERE id = $1 RETURNING *',
-      [id]
-    )
+      "DELETE FROM peliculas WHERE id = $1 RETURNING *",
+      [id],
+    );
 
-    if (rows.length === 0) throw new AppError('Película no encontrada', 404)
-    return rows[0]
+    if (rows.length === 0) throw new AppError("Película no encontrada", 404);
+    return rows[0];
   }
 
   async obtenerEstadisticas() {
@@ -115,7 +118,7 @@ class PeliculaService {
         MIN(nota) AS nota_minima
       FROM peliculas
       WHERE nota IS NOT NULL
-    `)
+    `);
 
     const { rows: porGenero } = await pool.query(`
       SELECT g.nombre AS genero, COUNT(p.id)::int AS cantidad
@@ -123,44 +126,75 @@ class PeliculaService {
       LEFT JOIN peliculas p ON p.genero_id = g.id
       GROUP BY g.id, g.nombre
       ORDER BY cantidad DESC
-    `)
+    `);
 
-    return { ...rows[0], porGenero }
+    return { ...rows[0], porGenero };
   }
 
   // =====================
   // Reseñas
   // =====================
   async obtenerResenas(peliculaId) {
-    await this.obtenerPorId(peliculaId) // lanza 404 si no existe la película
+    await this.obtenerPorId(peliculaId); // lanza 404 si no existe la película
 
     const { rows } = await pool.query(
-      'SELECT * FROM resenas WHERE pelicula_id = $1 ORDER BY created_at DESC',
-      [peliculaId]
-    )
+      "SELECT * FROM resenas WHERE pelicula_id = $1 ORDER BY created_at DESC",
+      [peliculaId],
+    );
 
-    return rows
+    return rows;
   }
 
   async crearResena(peliculaId, datos) {
-    await this.obtenerPorId(peliculaId) // lanza 404 si no existe
+    await this.obtenerPorId(peliculaId); // lanza 404 si no existe
 
-    const { autor, texto, puntuacion } = datos
+    const { autor, texto, puntuacion } = datos;
 
     if (puntuacion < 1 || puntuacion > 10) {
-      throw new AppError('La puntuacion debe ser entre 1 y 10', 400)
+      throw new AppError("La puntuacion debe ser entre 1 y 10", 400);
     }
 
     const { rows } = await pool.query(
       `INSERT INTO resenas (pelicula_id, autor, texto, puntuacion)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [peliculaId, autor, texto, Number(puntuacion)]
-    )
+      [peliculaId, autor, texto, Number(puntuacion)],
+    );
 
-    return rows[0]
+    return rows[0];
   }
 
+  // Buscar titulo o nombre con FTS
+  async buscarFullText(termino) {
+    // 1. Definimos la query usando FTS (Full-Text Search)
+    // Usamos websearch_to_tsquery para que el usuario pueda buscar como en Google
+    const query = `
+    SELECT 
+      p.id, 
+      p.titulo, 
+      p.anio, 
+      p.nota, 
+      d.nombre AS director,
+      g.nombre AS genero
+    FROM peliculas p
+    LEFT JOIN directores d ON d.id = p.director_id
+    LEFT JOIN generos g ON g.id = p.genero_id
+    WHERE 
+      to_tsvector('spanish', p.titulo || ' ' || COALESCE(d.nombre, '')) @@ websearch_to_tsquery('spanish', $1)
+    ORDER BY p.nota DESC;
+  `;
+
+    // Usamos el parámetro $1 para evitar SQL Injection
+    const values = [termino];
+
+    try {
+      const { rows } = await pool.query(query, values);
+      return rows;
+    } catch (err) {
+      console.error("Error en buscarFullText:", err);
+      throw err; // El controlador capturará este error en su catch
+    }
+  }
 };
 
-module.exports = new PeliculaService()
+module.exports = new PeliculaService();

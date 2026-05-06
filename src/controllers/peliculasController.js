@@ -1,23 +1,13 @@
 // src/controllers/peliculasController.js
 //traer los datos de data/peliculas.js
-const peliculaService = require('../services/PeliculaService');
-const pool = require('../config/db');
+const peliculaService = require("../services/PeliculaService");
+const pool = require("../config/db");
 
 // GET /api/peliculas
-const listarPeliculas = async (req, res,next) => {
+const listarPeliculas = async (req, res, next) => {
   try {
-    const { genero , buscar} = req.query;
-    const peliculas = await peliculaService.obtenerTodas({genero,buscar});
-    res.json(peliculas);
-  } catch (err) {
-    next(err);
-  }
-};
-
-const buscarPorDirector = async (req, res, next) => {
-  try {
-    const { director } = req.query;
-    const peliculas = await peliculaService.buscarPorDirector(director);
+    const { genero, buscar } = req.query;
+    const peliculas = await peliculaService.obtenerTodas({ genero, buscar });
     res.json(peliculas);
   } catch (err) {
     next(err);
@@ -36,7 +26,7 @@ const obtenerPelicula = async (req, res, next) => {
 };
 
 // POST /api/peliculas
-const crearPelicula = async (req, res,next) => {
+const crearPelicula = async (req, res, next) => {
   try {
     // const { titulo, director, anio, genero, nota } = req.body;
     const nueva = await peliculaService.crear(req.body);
@@ -47,10 +37,10 @@ const crearPelicula = async (req, res,next) => {
 };
 
 // PUT /api/peliculas/:id
-const actualizarPelicula = async (req, res,next) => {
+const actualizarPelicula = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const actualizada = await peliculaService.actualizas(id,req.body)
+    const actualizada = await peliculaService.actualizar(id, req.body);
     res.json(actualizada);
   } catch (err) {
     next(err);
@@ -58,52 +48,51 @@ const actualizarPelicula = async (req, res,next) => {
 };
 
 // DELETE /api/peliculas/:id
-const eliminarPelicula = async (req, res,next) => {
+const eliminarPelicula = async (req, res, next) => {
   try {
-  const id = Number(req.params.id);
-  const eliminada = await peliculaService.eliminar(id)
-  res.json({ mensaje: "Película eliminada", pelicula: eliminada });
-
-}catch (err) {
-  next(err)
-}
+    const id = Number(req.params.id);
+    const eliminada = await peliculaService.eliminar(id);
+    res.json({ mensaje: "Película eliminada", pelicula: eliminada });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // GET /api/peliculas/:id/resenas
-const listarResenas = async (req, res,next) => {
+const listarResenas = async (req, res, next) => {
   try {
-  const id = Number(req.params.id);
-  const pelicula = await peliculaService.obtenerPorId(id);
-  const resenas = await peliculaService.obtenerResenas(id)
+    const id = Number(req.params.id);
+    const pelicula = await peliculaService.obtenerPorId(id);
+    const resenas = await peliculaService.obtenerResenas(id);
 
-  res.json({ pelicula: pelicula.titulo, resenas });
- }catch(err) {
-  next(err)
- }
+    res.json({ pelicula: pelicula.titulo, resenas });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // POST /api/peliculas/:id/resenas
-const crearResena = async (req, res,next) => {
-  try{
-  const id = Number(req.params.id);
-  const nuevaResena = await peliculaService.crearResena(id,req.body)
+const crearResena = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const nuevaResena = await peliculaService.crearResena(id, req.body);
 
-  res.status(201).json(nuevaResena);
-} catch(err){
-  next(err)
-}
+    res.status(201).json(nuevaResena);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // BONUS: PATCH cambiar algunos campos
 const modificarPelicula = async (req, res, next) => {
   try {
-  const id = Number(req.params.id);
-  const actualizada = await peliculaService.actualizar(id,req.body);
+    const id = Number(req.params.id);
+    const actualizada = await peliculaService.actualizar(id, req.body);
 
-  res.json(actualizada);
-} catch(err) {
-  next(err)
-}
+    res.json(actualizada);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // BONUS: Modificar GET/api/peliculas con paginación ?pagina=1&limite=2
@@ -151,12 +140,12 @@ const estadisticasDirectores = async (req, res, next) => {
       GROUP BY d.id, d.nombre
       HAVING COUNT(p.id) >= 1
       ORDER BY nota_media DESC
-    `)
-    res.json(rows)
+    `);
+    res.json(rows);
   } catch (err) {
-    next(err)
+    next(err);
   }
-}
+};
 
 // GET /api/estadisticas/generos
 const estadisticasGeneros = async (req, res, next) => {
@@ -176,19 +165,39 @@ const estadisticasGeneros = async (req, res, next) => {
       SELECT *, RANK() OVER (ORDER BY nota_media DESC NULLS LAST) AS ranking
       FROM stats
       ORDER BY ranking
-    `)
-    res.json(rows)
+    `);
+    res.json(rows);
   } catch (err) {
-    next(err)
+    next(err);
   }
-}
+};
 
+// GET /api/peliculas?buscar
+const buscarPeliculas = async (req, res, next) => {
+  try {
+    // Extraemos 'buscar' de la query string (?buscar=nolan)
+    const { buscar } = req.query;
+
+    // Si no hay término, podríamos devolver un error o todas las películas
+    if (!buscar) {
+      return res
+        .status(400)
+        .json({ message: "Debes proporcionar un término de búsqueda." });
+    }
+
+    // Llamamos al servicio pasando el término dinámico
+    const peliculas = await peliculaService.buscarFullText(buscar);
+
+    res.json(peliculas);
+  } catch (err) {
+    next(err);
+  }
+};
 
 module.exports = {
   listarPeliculas,
   obtenerPelicula,
   crearPelicula,
-  buscarPorDirector,
   actualizarPelicula,
   eliminarPelicula,
   listarResenas,
@@ -196,5 +205,6 @@ module.exports = {
   modificarPelicula,
   obtenerPorPaginacion,
   estadisticasDirectores,
-  estadisticasGeneros
+  estadisticasGeneros,
+  buscarPeliculas,
 };
